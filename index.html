@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cotizador + Catálogo (CLP)</title>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{
+    --brand:#1e3a8a;      /* azul oscuro */
+    --brand-2:#2563eb;    /* azul */
+    --ink:#0f172a;        /* texto principal */
+    --muted:#64748b;      /* texto secundario */
+    --bg:#f1f5f9;         /* fondo */
+    --card:#ffffff;       /* tarjeta */
+    --line:#e2e8f0;       /* borde */
+    --success:#16a34a;
+    --danger:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Helvetica Neue", Ubuntu, "Noto Sans", sans-serif;
+    color:var(--ink);
+    background:linear-gradient(180deg,#eef2ff, #f8fafc 30%);
+  }
+  header{
+    background:linear-gradient(90deg,var(--brand), var(--brand-2));
+    color:#fff;
+    padding:16px 20px;
+    display:flex; align-items:center; gap:14px;
+    position:sticky; top:0; z-index:10;
+    box-shadow:0 6px 18px rgba(0,0,0,.12);
+  }
+  header img{height:44px; width:auto; border-radius:8px; object-fit:contain; background:#fff1; padding:4px; display:none}
+  header h1{margin:0; font-size:1.25rem; letter-spacing:.3px; font-weight:700}
+  main{max-width:1100px; margin:22px auto; padding:0 16px}
+  .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .tab-btn{
+    background:#fff; border:1px solid var(--line); color:var(--brand);
+    padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;
+  }
+  .tab-btn.active{background:var(--brand); color:#fff; border-color:transparent}
+  .grid{display:grid; gap:16px}
+  @media(min-width:900px){
+    .grid-2{grid-template-columns:1fr 1fr}
+  }
+  section.card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px;
+    box-shadow:0 2px 10px rgba(0,0,0,.05);
+  }
+  h2{margin:0 0 10px 0; font-size:1.05rem; color:var(--brand)}
+  label{display:block; font-size:.9rem; margin-top:10px; font-weight:600; color:var(--ink)}
+  input, textarea, select{
+    width:100%; margin-top:6px; padding:10px 12px; border:2px solid var(--line);
+    border-radius:10px; font-size:.95rem; background:#fff; outline:none; transition:border-color .2s;
+  }
+  input:focus, textarea:focus, select:focus{border-color:var(--brand-2)}
+  textarea{resize:vertical}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .row > *{flex:1}
+  .btn{
+    background:var(--brand); color:#fff; border:none; border-radius:10px; padding:10px 14px; font-weight:700; cursor:pointer;
+  }
+  .btn.secondary{background:#0f766e}
+  .btn.ghost{background:#fff; color:var(--brand); border:1px solid var(--line)}
+  .btn.danger{background:var(--danger)}
+  .btn.success{background:var(--success)}
+  .btn:disabled{opacity:.6; cursor:not-allowed}
+  .right{ text-align:right }
+  table{width:100%; border-collapse:collapse; margin-top:12px; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  th, td{padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:top}
+  thead th{background:linear-gradient(180deg,#eff6ff,#e0e7ff); color:#0b2a6b; font-size:.9rem}
+  tbody tr:hover{background:#f8fafc}
+  .muted{color:var(--muted); font-size:.88rem}
+  .pill{display:inline-block; background:#eef2ff; color:#1e3a8a; padding:2px 8px; border-radius:999px; font-size:.75rem; border:1px solid #dbeafe}
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .search{flex:1}
+  .small{font-size:.85rem}
+  .hint{font-size:.85rem; color:var(--muted)}
+  .totals{display:flex; justify-content:flex-end; margin-top:10px}
+  .totals .box{
+    min-width:320px; border:1px solid var(--line); border-radius:12px; padding:10px; background:#f8fafc;
+  }
+  .totals .box div{display:flex; justify-content:space-between; padding:4px 0}
+  .totals .box .grand{font-weight:800; color:#0b2a6b; border-top:1px dashed var(--line); margin-top:6px; padding-top:6px}
+  .sep{height:1px; background:var(--line); margin:10px 0}
+  .foot-note{font-size:.8rem; color:var(--muted); margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <img id="headerLogo" alt="Logo" />
+  <h1>Cotizador + Catálogo (CLP)</h1>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="cotizacion">Nueva cotización</button>
+    <button class="tab-btn" data-tab="catalogo">Catálogo</button>
+  </div>
+
+  <!-- =============== COTIZACIÓN =============== -->
+  <div id="cotizacion" class="grid grid-2">
+    <section class="card">
+      <h2>Datos de la empresa</h2>
+      <div class="row">
+        <div>
+          <label>Logo (PNG/JPG)</label>
+          <input type="file" id="logoEmpresa" accept="image/png,image/jpeg" />
+          <div class="hint">El logo se guarda en el navegador para reutilizarlo.</div>
+        </div>
+        <div>
+          <label>Nombre de empresa</label>
+          <input id="empresaNombre" placeholder="Ej: Constructora Jonas" />
+        </div>
+      </div>
+      <label>Dirección</label>
+      <input id="empresaDireccion" placeholder="Ej: Av. Siempre Viva 123, Santiago" />
+      <div class="row">
+        <div>
+          <label>Teléfono</label>
+          <input id="empresaTelefono" placeholder="+56 9 1234 5678" />
+        </div>
+        <div>
+          <label>Email</label>
+          <input id="empresaEmail" type="email" placeholder="ventas@empresa.cl" />
+        </div>
+      </div>
+      <label>Sitio web</label>
+      <input id="empresaWeb" placeholder="https://www.empresa.cl" />
+    </section>
+
+    <section class="card">
+      <h2>Datos del cliente</h2>
+      <label>Nombre / Razón social</label>
+      <input id="clienteNombre" placeholder="Ej: Juan Pérez" />
+      <label>Dirección</label>
+      <input id="clienteDireccion" placeholder="Calle, comuna, ciudad" />
+      <div class="row">
+        <div>
+          <label>Teléfono</label>
+          <input id="clienteTelefono" placeholder="+56 9 8765 4321" />
+        </div>
+        <div>
+          <label>Email</label>
+          <input id="clienteEmail" type="email" placeholder="cliente@correo.cl" />
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <div>
+          <label>N° de cotización</label>
+          <input id="numeroCotizacion" disabled />
+        </div>
+        <div>
+          <label>Fecha</label>
+          <input id="fechaEmision" />
+        </div>
+      </div>
+      <div class="foot-note">El número de cotización se incrementa automáticamente y se guarda.</div>
+    </section>
+
+    <section class="card" style="grid-column:1 / -1">
+      <h2>Agregar ítems</h2>
+
+      <!-- Desde catálogo -->
+      <div class="toolbar">
+        <span class="pill">Desde catálogo</span>
+        <input id="buscarCatalogo" class="search" placeholder="Buscar en catálogo por nombre o descripción…" />
+        <select id="selectCatalogo" style="min-width:260px"></select>
+        <input id="cantCatalogo" type="number" min="1" value="1" style="max-width:120px" />
+        <button class="btn success" id="btnAddFromCatalog">Agregar</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Manual -->
+      <div class="toolbar">
+        <span class="pill">Manual</span>
+      </div>
+      <div class="row">
+        <div>
+          <label>Nombre del producto/servicio</label>
+          <input id="mNombre" placeholder="Ej: Instalación de cerámica" />
+        </div>
+        <div style="max-width:180px">
+          <label>Cantidad</label>
+          <input id="mCantidad" type="number" min="1" value="1" />
+        </div>
+        <div style="max-width:220px">
+          <label>Precio unitario (CLP)</label>
+          <input id="mPrecio" type="number" min="0" step="1" value="0" />
+        </div>
+      </div>
+      <label>Descripción adicional</label>
+      <textarea id="mDesc" rows="2" placeholder="Detalle técnico, condiciones, medidas, etc."></textarea>
+      <div class="row">
+        <button class="btn" id="btnAddManual">Agregar manual</button>
+        <button class="btn ghost" id="btnClearQuote">Limpiar cotización</button>
+      </div>
+
+      <table id="tablaItems">
+        <thead>
+          <tr>
+            <th style="width:22%">Producto/Servicio</th>
+            <th>Descripción</th>
+            <th style="width:10%">Cant.</th>
+            <th style="width:16%" class="right">Precio unit. (CLP)</th>
+            <th style="width:16%" class="right">Total (CLP)</th>
+            <th style="width:10%">Acción</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="totals">
+        <div class="box">
+          <div><span>Subtotal</span><strong id="subView">$ 0</strong></div>
+          <div class="row" style="align-items:center; gap:8px; margin-top:6px">
+            <div style="flex:1; display:flex; align-items:center; gap:8px">
+              <label class="small" style="margin:0"><input type="checkbox" id="inclIVA" checked /> Incluir IVA</label>
+              <div style="display:flex; align-items:center; gap:6px">
+                <span class="small muted">IVA %</span>
+                <input id="ivaPct" type="number" min="0" step="0.1" value="19" style="width:90px; padding:6px 8px" />
+              </div>
+            </div>
+            <strong id="ivaView">$ 0</strong>
+          </div>
+          <div class="grand"><span>Total</span><span id="totalView">$ 0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column:1 / -1">
+      <h2>Notas / Observaciones</h2>
+      <textarea id="observaciones" rows="4" placeholder="Plazos, garantías, formas de pago, validez de la oferta, etc."></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="btnPDF">Generar PDF</button>
+      </div>
+      <div class="foot-note">Los datos se mantienen en tu navegador (localStorage).</div>
+    </section>
+  </div>
+
+  <!-- =============== CATÁLOGO =============== -->
+  <div id="catalogo" class="grid" style="display:none">
+    <section class="card">
+      <h2>Catálogo de artículos (reutilizables)</h2>
+      <div class="row">
+        <div>
+          <label>Nombre</label>
+          <input id="cNombre" placeholder="Ej: Metro cuadrado de cerámica" />
+        </div>
+        <div>
+          <label>Precio unitario (CLP)</label>
+          <input id="cPrecio" type="number" min="0" step="1" value="0" />
+        </div>
+      </div>
+      <label>Descripción</label>
+      <textarea id="cDesc" rows="2" placeholder="Detalle o condiciones del artículo/servicio"></textarea>
+      <div class="row">
+        <button class="btn success" id="btnAddCatalog">Guardar en catálogo</button>
+        <button class="btn ghost" id="btnClearCatalog">Limpiar catálogo</button>
+      </div>
+
+      <div class="toolbar" style="margin-top:10px">
+        <input id="cBuscar" class="search" placeholder="Buscar en catálogo…" />
+      </div>
+
+      <table id="tablaCatalogo">
+        <thead>
+          <tr>
+            <th style="width:24%">Nombre</th>
+            <th>Descripción</th>
+            <th style="width:16%" class="right">Precio (CLP)</th>
+            <th style="width:18%">Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="foot-note">Edita o elimina artículos; luego podrás agregarlos desde la pestaña “Nueva cotización”.</div>
+    </section>
+  </div>
+</main>
+
+<script>
+/* =====================================
+   Utilidades
+===================================== */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+const CLP = n => {
+  const value = Number(n||0);
+  return '$\u00A0' + value.toLocaleString('es-CL', {maximumFractionDigits:0});
+};
+
+const STORAGE = {
+  CATALOG: 'catalogoArticulos_v1',
+  QUOTE_ITEMS: 'cotizacionItems_v1',
+  LOGO: 'empresaLogo_b64_v1',
+  QUOTE_NUM: 'numeroCotizacion_v1',
+  COMPANY: 'empresaDatos_v1',
+  CLIENT:  'clienteDatos_v1',
+  SETTINGS:'ajustes_v1'
+};
+
+function save(key, data){ localStorage.setItem(key, JSON.stringify(data)); }
+function load(key, fallback){ try{ return JSON.parse(localStorage.getItem(key)) ?? fallback; }catch(_){ return fallback; } }
+
+/* =====================================
+   Estado
+===================================== */
+let catalogo = load(STORAGE.CATALOG, []);
+let items = load(STORAGE.QUOTE_ITEMS, []);
+let logoB64 = localStorage.getItem(STORAGE.LOGO) || '';
+let numeroCot = Number(localStorage.getItem(STORAGE.QUOTE_NUM) || 1);
+
+const empresa = load(STORAGE.COMPANY, {nombre:'', dir:'', tel:'', email:'', web:''});
+const cliente = load(STORAGE.CLIENT, {nombre:'', dir:'', tel:'', email:''});
+const ajustes = load(STORAGE.SETTINGS, {inclIVA:true, ivaPct:19});
+
+/* =====================================
+   Tabs
+===================================== */
+$$('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    $('#cotizacion').style.display = tab==='cotizacion'?'grid':'none';
+    $('#catalogo').style.display = tab==='catalogo'?'grid':'none';
+  });
+});
+
+/* =====================================
+   Inicialización de campos persistentes
+===================================== */
+function setVal(id, val){ const el=$(id); if(!el) return; el.value = val || ''; }
+function getVal(id){ return ($(id)?.value||'').trim(); }
+
+function hydrate(){
+  // Empresa
+  setVal('#empresaNombre', empresa.nombre);
+  setVal('#empresaDireccion', empresa.dir);
+  setVal('#empresaTelefono', empresa.tel);
+  setVal('#empresaEmail', empresa.email);
+  setVal('#empresaWeb', empresa.web);
+  if(logoB64){ const img = $('#headerLogo'); img.src = logoB64; img.style.display='block'; }
+
+  // Cliente
+  setVal('#clienteNombre', cliente.nombre);
+  setVal('#clienteDireccion', cliente.dir);
+  setVal('#clienteTelefono', cliente.tel);
+  setVal('#clienteEmail', cliente.email);
+
+  // Ajustes
+  $('#inclIVA').checked = ajustes.inclIVA;
+  setVal('#ivaPct', ajustes.ivaPct);
+
+  // Número y fecha
+  setVal('#numeroCotizacion', numeroCot);
+  const today = new Date();
+  const iso = new Date(today.getTime() - today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  setVal('#fechaEmision', iso);
+
+  renderCatalogo();
+  renderCatalogSelect();
+  renderItems();
+  recalc();
+}
+hydrate();
+
+/* Persistencia de cambios empresa/cliente/ajustes */
+['#empresaNombre','#empresaDireccion','#empresaTelefono','#empresaEmail','#empresaWeb']
+  .forEach(sel => $(sel).addEventListener('input', ()=>{
+    empresa.nombre = getVal('#empresaNombre');
+    empresa.dir    = getVal('#empresaDireccion');
+    empresa.tel    = getVal('#empresaTelefono');
+    empresa.email  = getVal('#empresaEmail');
+    empresa.web    = getVal('#empresaWeb');
+    save(STORAGE.COMPANY, empresa);
+  }));
+
+['#clienteNombre','#clienteDireccion','#clienteTelefono','#clienteEmail']
+  .forEach(sel => $(sel).addEventListener('input', ()=>{
+    cliente.nombre = getVal('#clienteNombre');
+    cliente.dir    = getVal('#clienteDireccion');
+    cliente.tel    = getVal('#clienteTelefono');
+    cliente.email  = getVal('#clienteEmail');
+    save(STORAGE.CLIENT, cliente);
+  }));
+
+['#inclIVA','#ivaPct'].forEach(sel => $(sel).addEventListener('input', ()=>{
+  ajustes.inclIVA = $('#inclIVA').checked;
+  ajustes.ivaPct  = Math.max(0, Number(getVal('#ivaPct')||19));
+  save(STORAGE.SETTINGS, ajustes);
+  recalc();
+}));
+
+/* Logo */
+$('#logoEmpresa').addEventListener('change', (e)=>{
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    logoB64 = ev.target.result;
+    localStorage.setItem(STORAGE.LOGO, logoB64);
+    const img = $('#headerLogo');
+    img.src = logoB64; img.style.display='block';
+  };
+  reader.readAsDataURL(file);
+});
+
+/* =====================================
+   Catálogo
+===================================== */
+function renderCatalogo(filter=''){
+  const tbody = $('#tablaCatalogo tbody');
+  tbody.innerHTML = '';
+  const q = filter.toLowerCase();
+  catalogo
+    .filter(a => (a.nombre+a.desc).toLowerCase().includes(q))
+    .forEach((a, idx)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${a.nombre}</strong></td>
+        <td class="muted">${a.desc||''}</td>
+        <td class="right"><strong>${CLP(a.precio)}</strong></td>
+        <td>
+          <div class="row" style="gap:6px">
+            <button class="btn ghost small" onclick="editCatalog(${idx})">Editar</button>
+            <button class="btn danger small" onclick="delCatalog(${idx})">Eliminar</button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+}
+
+function renderCatalogSelect(){
+  const sel = $('#selectCatalogo');
+  const q = ($('#buscarCatalogo').value||'').toLowerCase();
+  sel.innerHTML = '';
+  const optEmpty = document.createElement('option');
+  optEmpty.value=''; optEmpty.textContent='-- Selecciona un artículo --';
+  sel.appendChild(optEmpty);
+  catalogo
+    .filter(a => (a.nombre+a.desc).toLowerCase().includes(q))
+    .forEach((a,i)=>{
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = `${a.nombre} — ${CLP(a.precio)}`;
+      sel.appendChild(opt);
+    });
+}
+
+$('#btnAddCatalog').addEventListener('click', ()=>{
+  const nombre = getVal('#cNombre');
+  const precio = Number(getVal('#cPrecio'));
+  const desc   = getVal('#cDesc');
+  if(!nombre || isNaN(precio) || precio<0){ alert('Completa nombre y precio válidos.'); return; }
+  catalogo.push({nombre, desc, precio});
+  save(STORAGE.CATALOG, catalogo);
+  $('#cNombre').value=''; $('#cPrecio').value='0'; $('#cDesc').value='';
+  renderCatalogo($('#cBuscar').value||'');
+  renderCatalogSelect();
+});
+
+function editCatalog(i){
+  const a = catalogo[i];
+  const nombre = prompt('Editar nombre', a.nombre);
+  if(nombre===null) return;
+  const precio = Number(prompt('Editar precio (solo número CLP)', a.precio));
+  if(isNaN(precio) || precio<0){ alert('Precio inválido'); return; }
+  const desc = prompt('Editar descripción', a.desc||'');
+  catalogo[i] = {nombre, precio, desc};
+  save(STORAGE.CATALOG, catalogo);
+  renderCatalogo($('#cBuscar').value||'');
+  renderCatalogSelect();
+}
+function delCatalog(i){
+  if(!confirm('¿Eliminar artículo del catálogo?')) return;
+  catalogo.splice(i,1);
+  save(STORAGE.CATALOG, catalogo);
+  renderCatalogo($('#cBuscar').value||'');
+  renderCatalogSelect();
+}
+$('#cBuscar').addEventListener('input', (e)=>{
+  renderCatalogo(e.target.value||'');
+});
+$('#buscarCatalogo').addEventListener('input', ()=>{
+  renderCatalogSelect();
+});
+
+/* =====================================
+   Cotización: agregar ítems
+===================================== */
+$('#btnAddFromCatalog').addEventListener('click', ()=>{
+  const idx = Number($('#selectCatalogo').value);
+  const cant = Math.max(1, Number($('#cantCatalogo').value||1));
+  if(isNaN(idx) || isNaN(cant) || !catalogo[idx]){ alert('Selecciona un artículo del catálogo y cantidad válida.'); return; }
+  const a = catalogo[idx];
+  pushItem({nombre:a.nombre, desc:a.desc||'', cantidad:cant, precio:a.precio});
+});
+
+$('#btnAddManual').addEventListener('click', ()=>{
+  const nombre = getVal('#mNombre');
+  const desc   = getVal('#mDesc');
+  const cantidad = Math.max(1, Number(getVal('#mCantidad')||1));
+  const precio   = Math.max(0, Number(getVal('#mPrecio')||0));
+  if(!nombre){ alert('Ingresa el nombre del producto/servicio.'); return; }
+  pushItem({nombre, desc, cantidad, precio});
+  // limpiar inputs manuales
+  $('#mNombre').value=''; $('#mDesc').value=''; $('#mCantidad').value=1; $('#mPrecio').value=0;
+});
+
+function pushItem(it){
+  // Si ya existe por nombre y precio, sumar cantidades
+  const ex = items.find(x=>x.nombre===it.nombre && x.precio===it.precio && (x.desc||'')===(it.desc||''));
+  if(ex){ ex.cantidad += it.cantidad; }
+  else  { items.push(it); }
+  save(STORAGE.QUOTE_ITEMS, items);
+  renderItems();
+  recalc();
+}
+
+function renderItems(){
+  const tb = $('#tablaItems tbody');
+  tb.innerHTML='';
+  items.forEach((it,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${it.nombre}</strong></td>
+      <td class="muted">${it.desc||''}</td>
+      <td class="right">
+        <input type="number" min="1" value="${it.cantidad}" style="width:86px; padding:6px 8px" onchange="updQty(${i}, this.value)" />
+      </td>
+      <td class="right">${CLP(it.precio)}</td>
+      <td class="right"><strong>${CLP(it.precio*it.cantidad)}</strong></td>
+      <td>
+        <div class="row" style="gap:6px">
+          <button class="btn ghost small" onclick="editItem(${i})">Editar</button>
+          <button class="btn danger small" onclick="delItem(${i})">Quitar</button>
+        </div>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function updQty(i, v){
+  const n = Math.max(1, Number(v||1));
+  items[i].cantidad = n;
+  save(STORAGE.QUOTE_ITEMS, items);
+  renderItems();
+  recalc();
+}
+function editItem(i){
+  const it = items[i];
+  const nombre = prompt('Editar nombre', it.nombre);
+  if(nombre===null) return;
+  const desc = prompt('Editar descripción', it.desc||'');
+  const precio = Number(prompt('Editar precio (CLP)', it.precio));
+  if(isNaN(precio) || precio<0){ alert('Precio inválido'); return; }
+  const cant = Math.max(1, Number(prompt('Editar cantidad', it.cantidad)));
+  items[i] = {nombre, desc, precio, cantidad:cant};
+  save(STORAGE.QUOTE_ITEMS, items);
+  renderItems(); recalc();
+}
+function delItem(i){
+  if(!confirm('¿Quitar este ítem de la cotización?')) return;
+  items.splice(i,1);
+  save(STORAGE.QUOTE_ITEMS, items);
+  renderItems(); recalc();
+}
+$('#btnClearQuote').addEventListener('click', ()=>{
+  if(!confirm('¿Limpiar todos los ítems de la cotización?')) return;
+  items = [];
+  save(STORAGE.QUOTE_ITEMS, items);
+  renderItems(); recalc();
+});
+
+/* =====================================
+   Totales
+===================================== */
+function recalc(){
+  const subtotal = items.reduce((acc, it)=> acc + it.precio*it.cantidad, 0);
+  const incl = $('#inclIVA').checked;
+  const pct  = Math.max(0, Number(getVal('#ivaPct')||0));
+  const iva  = incl ? subtotal * (pct/100) : 0;
+  const total= subtotal + iva;
+  $('#subView').textContent   = CLP(subtotal);
+  $('#ivaView').textContent   = incl ? CLP(iva) : '—';
+  $('#totalView').textContent = CLP(total);
+}
+
+/* =====================================
+   Búsquedas y selects catálogo
+===================================== */
+$('#buscarCatalogo').addEventListener('input', renderCatalogSelect);
+
+/* =====================================
+   Botones catálogo
+===================================== */
+$('#btnClearCatalog').addEventListener('click', ()=>{
+  if(!confirm('¿Eliminar TODOS los artículos del catálogo?')) return;
+  catalogo = [];
+  save(STORAGE.CATALOG, catalogo);
+  renderCatalogo($('#cBuscar').value||'');
+  renderCatalogSelect();
+});
+
+/* =====================================
+   PDF
+===================================== */
+$('#btnPDF').addEventListener('click', generatePDF);
+
+function generatePDF(){
+  if(items.length===0){ alert('Agrega ítems a la cotización.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'}); // 595 x 842 pt aprox
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = margin;
+
+  // Encabezado
+  if(logoB64){
+    try{ doc.addImage(logoB64, 'PNG', margin, y-2, 120, 52); }catch(_){}
+  }
+
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(30,58,138);
+  doc.setFontSize(22);
+  const title = 'COTIZACIÓN';
+  doc.text(title, pageW - margin - doc.getTextWidth(title), y+20);
+
+  y += 64;
+
+  // Línea separadora
+  doc.setDrawColor(37,99,235);
+  doc.setLineWidth(1.2);
+  doc.line(margin, y, pageW - margin, y);
+  y += 16;
+
+  // Bloque empresa / cliente
+  doc.setFontSize(11);
+  doc.setTextColor(15,23,42);
+
+  const blockW = (pageW - margin*2)/2 - 10;
+  // Empresa
+  doc.setFont('helvetica','bold'); doc.text('EMISOR', margin, y);
+  doc.setFont('helvetica','normal');
+  const empLines = [
+    empresa.nombre||'',
+    empresa.dir||'',
+    `Tel: ${empresa.tel||''}`,
+    empresa.email||'',
+    empresa.web||''
+  ].filter(Boolean);
+  doc.text(empLines, margin, y+16, {maxWidth:blockW, lineHeightFactor:1.3});
+
+  // Cliente
+  doc.setFont('helvetica','bold'); doc.text('CLIENTE', margin+blockW+20, y);
+  doc.setFont('helvetica','normal');
+  const cliLines = [
+    cliente.nombre||'',
+    cliente.dir||'',
+    `Tel: ${cliente.tel||''}`,
+    cliente.email||''
+  ].filter(Boolean);
+  doc.text(cliLines, margin+blockW+20, y+16, {maxWidth:blockW, lineHeightFactor:1.3});
+
+  // N° cotización / fecha
+  const metaY = y + 16 + Math.max(empLines.length, cliLines.length)*14 + 8;
+  doc.setFont('helvetica','bold');
+  doc.text(`Cotización N°: ${numeroCot}`, margin, metaY);
+  const fecha = getVal('#fechaEmision') || new Date().toLocaleDateString('es-CL');
+  const fechaTxt = `Fecha: ${fecha}`;
+  doc.text(fechaTxt, pageW - margin - doc.getTextWidth(fechaTxt), metaY);
+
+  y = metaY + 18;
+
+  // Tabla
+  const body = items.map(it => ([
+    it.nombre,
+    it.desc || '',
+    String(it.cantidad),
+    CLP(it.precio),
+    CLP(it.precio*it.cantidad)
+  ]));
+
+  doc.autoTable({
+    startY: y,
+    head: [['Producto/Servicio','Descripción','Cant.','P. Unitario (CLP)','Total (CLP)']],
+    body,
+    margin: {left: margin, right: margin},
+    styles: {font:'helvetica', fontSize:10, cellPadding:6, lineColor:[226,232,240], lineWidth:0.5, textColor:[15,23,42]},
+    headStyles: {fillColor:[30,58,138], textColor:255, fontStyle:'bold'},
+    alternateRowStyles: {fillColor:[248,250,252]},
+    columnStyles:{
+      0:{cellWidth:140},
+      1:{cellWidth:180},
+      2:{halign:'center', cellWidth:50},
+      3:{halign:'right', cellWidth:95},
+      4:{halign:'right', cellWidth:60},
+    }
+  });
+
+  y = doc.lastAutoTable.finalY + 12;
+
+  // Totales (cuadro a la derecha)
+  const subtotal = items.reduce((a,it)=>a+it.precio*it.cantidad,0);
+  const inc = ajustes.inclIVA;
+  const pct = Math.max(0, Number(ajustes.ivaPct||0));
+  const iva = inc ? subtotal*(pct/100) : 0;
+  const total = subtotal + iva;
+
+  const boxW = 240, boxH = 86, boxX = pageW - margin - boxW, boxY = y;
+  doc.setDrawColor(37,99,235); doc.setFillColor(240,245,255);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 6, 6, 'FD');
+  doc.setFontSize(11);
+
+  doc.setTextColor(30,58,138); doc.setFont('helvetica','bold');
+  doc.text('Resumen', boxX+10, boxY+18);
+  doc.setFont('helvetica','normal'); doc.setTextColor(15,23,42);
+
+  const rows = [
+    ['Subtotal', CLP(subtotal)],
+    inc ? [`IVA (${pct}%)`, CLP(iva)] : ['IVA', '—'],
+    ['TOTAL', CLP(total)]
+  ];
+  let ry = boxY + 36;
+  rows.forEach((r, i)=>{
+    if(i===2){ // total
+      doc.setFont('helvetica','bold'); doc.setTextColor(11,42,107);
+    } else {
+      doc.setFont('helvetica','normal'); doc.setTextColor(15,23,42);
+    }
+    doc.text(r[0], boxX+10, ry);
+    doc.text(r[1], boxX+boxW-10, ry, {align:'right'});
+    ry += 18;
+  });
+
+  y += boxH + 16;
+
+  // Observaciones
+  const obs = getVal('#observaciones');
+  if(obs){
+    doc.setFont('helvetica','bold'); doc.setTextColor(30,58,138);
+    doc.text('Observaciones', margin, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(15,23,42);
+    const split = doc.splitTextToSize(obs, pageW - margin*2);
+    doc.text(split, margin, y+16, {lineHeightFactor:1.35});
+    y += 16 + split.length*14;
+  }
+
+  // Pie
+  const footer = `Documento generado automáticamente • ${new Date().toLocaleString('es-CL')}`;
+  doc.setFontSize(9); doc.setTextColor(100);
+  doc.text(footer, pageW/2, doc.internal.pageSize.getHeight()-18, {align:'center'});
+
+  // Guardar
+  doc.save(`Cotizacion_${String(numeroCot).padStart(4,'0')}.pdf`);
+
+  // Incrementar número
+  numeroCot += 1;
+  localStorage.setItem(STORAGE.QUOTE_NUM, String(numeroCot));
+  $('#numeroCotizacion').value = numeroCot;
+}
+
+/* =====================================
+   Exponer funciones para inline handlers
+===================================== */
+window.updQty = updQty;
+window.editItem = editItem;
+window.delItem  = delItem;
+
+/* =====================================
+   Eventos finales
+===================================== */
+$('#selectCatalogo').addEventListener('change', ()=>{ /* no-op, handled on click add */ });
+
+</script>
+</body>
+</html>
